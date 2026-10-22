@@ -60,7 +60,9 @@ How they run:
 
 - In your Mac's local time, while the OrgCS console with Omni-Channel is open in Satellite. With several
   OrgCS pages open, only one acts.
-- If you change the status yourself during a window, the window's end leaves your choice alone.
+- A window's end always applies its **Afterwards** status, even if you changed the status yourself
+  during the window, and even if Satellite opened after the window started (up to 15 minutes after it
+  ended). **Previous status** is the one exception: it needs the window's start to have run that day.
 - Back-to-back windows hand over without switching back in between: 9:00–12:00 Available - Case then
   12:00–13:00 Lunch goes Available, Lunch, then back to the status before 9:00.
 - If Satellite opens partway through a window, the window still applies. A window without an end time,
@@ -97,8 +99,15 @@ devices to their own PC, so nobody has to set up anyone else's.
 ### OrgCS Remote (web page)
 
 `client/remote.html` does what `remote.js` does, as a page for a phone or any browser: link with the
-code once, then tap a status. The buttons come from your PC, so they always match `OMNI_STATUSES`. If
-the PC doesn't answer, the page says so and keeps checking.
+code once, then tap a status. The buttons come from your PC, so they always match `OMNI_STATUSES`.
+
+- At the top it shows **Your status** now. It checks again every 15 seconds while the page is on screen,
+  and as soon as you come back to it. `node remote.js status` prints the same.
+- The PC reads your status from the Omni-Channel widget. If the widget doesn't show it, the PC knows it
+  once a status is picked from the menu (by you, a schedule or a device); until then it says **Not known
+  yet**.
+- If the PC doesn't answer, the page says so and keeps checking.
+
 
 - Serve the `client` folder (`remote.html` with `satella.js` next to it) over **https**. Browsers only
   make keys on secure pages, so a plain `http://` address on your network won't work. Opening the file
@@ -119,7 +128,8 @@ On the channel `<channel>@1.0.0` (Bellwood's naming for a channel without a `mod
   Bellwood mod can send it with `C_RelaySend("<channel>", "Break", 5)`
 - reply from the page: `{"type":"status-result","id":"<same>","ok":true,"status":"Break","message":"Omni-Channel: Break"}`
 - `{"type":"list-statuses","id":"<any>"}` from a linked device gets
-  `{"type":"statuses","id":"<same>","statuses":["Available - Case", …]}`
+  `{"type":"statuses","id":"<same>","statuses":["Available - Case", …],"current":"Lunch"}` (`current` is
+  `""` when the PC can't tell)
 
 Linking happens on the lobby `orgcs-remote.link.<first two digits of the code>@1.0.0`, which anyone can
 listen to. So each side proves it knows the whole code, using HMAC-SHA256 keyed by the code over the

@@ -1,7 +1,7 @@
 {
   "$schema": ".satellite/manifest.schema.json",
   "name": "orgcs-remote",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "author": "Kevin Alexis Contreras",
   "description": "Keyboard shortcuts for the OrgCS console (Omni-Channel status, case list, case tabs), Omni-Channel statuses scheduled by time window, and status changes sent from your other devices through Bellwood's Satella relay, linked with a one-time code.",
   "icon": "symbol:keyboard",

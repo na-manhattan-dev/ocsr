@@ -114,23 +114,52 @@ function omniItem(widget, label) {
   return host ? (host.shadowRoot || host).querySelector('a, [role="menuitem"]') || host : null;
 }
 
-// The status checked in the open menu, spelled as in OMNI_STATUSES; '' when none is.
-function checkedStatus(widget) {
-  const host = deepAll(widget, 'lightning-menu-item')
-    .find(el => ((el.shadowRoot || el).querySelector('a, [role="menuitem"]') || el).getAttribute('aria-checked') === 'true');
-  if (!host) return '';
-  const text = deepText(host).replace(/\s+/g, ' ').trim();
-  return OMNI_STATUSES.find(s => norm(s.label) === norm(text))?.label || text;
+function omniWidget() {
+  const widgets = deepAll(document, 'omni-widget2-header');
+  return widgets.find(visible) || widgets[0] || null;
 }
 
-// Returns { ok, message, was } (was: the status before), plus missing: true when this page has no
-// Omni-Channel widget. With onlyIf, it changes nothing (skipped: true) unless the status is onlyIf now.
-async function setOmniStatus(label, { onlyIf } = {}) {
-  const widgets = deepAll(document, 'omni-widget2-header');
-  const widget = widgets.find(visible) || widgets[0];
+const knownStatus = text => OMNI_STATUSES.find(s => norm(s.label) === norm(text))?.label || '';
+
+function inOmniMenu(node, widget) {
+  for (let n = node; n && n !== widget; n = n.parentNode || n.host) {
+    if (n.localName === 'lightning-menu-item' || n.classList?.contains('menu-item-container')) return true;
+  }
+  return false;
+}
+
+// The last status picked from the Omni-Channel menu on this page, by you or by this extension.
+let lastPicked = '';
+document.addEventListener('click', event => {
+  const path = event.composedPath();
+  const item = path.find(n => n.localName === 'lightning-menu-item');
+  if (item && path.some(n => n.localName === 'omni-widget2-header')) lastPicked = knownStatus(deepText(item)) || lastPicked;
+}, true);
+
+// Your status now, spelled as in OMNI_STATUSES, without opening the menu; '' when the page doesn't say.
+// It's the status the widget shows outside its menu (as text or a title), else a checked menu item (the
+// OrgCS menu doesn't mark one), else the last status picked from the menu on this page.
+function currentOmniStatus(widget = omniWidget()) {
+  if (!widget) return '';
+  for (const node of deepAll(widget, '*')) {
+    if (inOmniMenu(node, widget)) continue;
+    const ownText = [...node.childNodes].filter(n => n.nodeType === 3).map(n => n.data).join('');
+    const label = [node.getAttribute('title'), node.getAttribute('aria-label'), ownText].map(t => t && knownStatus(t)).find(Boolean);
+    if (label) return label;
+  }
+  const checked = deepAll(widget, 'lightning-menu-item')
+    .find(el => ((el.shadowRoot || el).querySelector('a, [role="menuitem"]') || el).getAttribute('aria-checked') === 'true');
+  return (checked && knownStatus(deepText(checked))) || lastPicked;
+}
+
+// Returns { ok, message, was } (was: the status before, '' when unknown), plus missing: true when this
+// page has no Omni-Channel widget.
+async function setOmniStatus(label) {
+  const widget = omniWidget();
   const trigger = widget && omniTrigger(widget);
   if (!trigger) return { ok: false, missing: true, message: 'Omni-Channel isn’t loaded on this page. Open it once, then try again.' };
 
+  const was = currentOmniStatus(widget);
   const closeMenu = () => { if (trigger.getAttribute('aria-expanded') === 'true') trigger.click(); };
   if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
 
@@ -140,11 +169,6 @@ async function setOmniStatus(label, { onlyIf } = {}) {
   if (!item) {
     closeMenu();
     return { ok: false, message: `There is no “${label}” status in your Omni-Channel menu.` };
-  }
-  const was = checkedStatus(widget);
-  if (onlyIf !== undefined && norm(was) !== norm(onlyIf)) {
-    closeMenu();
-    return { ok: false, skipped: true, was, message: `Omni-Channel is ${was || 'on another status'} now, so it was left as is.` };
   }
   if (item.getAttribute('aria-checked') === 'true') {
     closeMenu();
@@ -287,9 +311,9 @@ function onRemoteMessage({ channel, sender, text }) {
   }
   let message;
   try { message = JSON.parse(text); } catch (e) { message = { type: 'set-status', status: text }; }
-  if (message?.type === 'list-statuses') { // remote.html asks for its buttons
+  if (message?.type === 'list-statuses') { // remote.html asks for its buttons and your status now
     if (!sender || !remote.trusted.has(sender)) return;
-    const reply = { type: 'statuses', id: message.id ?? null, statuses: OMNI_STATUSES.map(s => s.label) };
+    const reply = { type: 'statuses', id: message.id ?? null, statuses: OMNI_STATUSES.map(s => s.label), current: currentOmniStatus() };
     remote.client?.send(remote.channel, JSON.stringify(reply));
     return;
   }
@@ -550,10 +574,11 @@ async function fireScheduled({ rule, kind }, todays, log) {
     log.before[rule.id] = handoff ? log.before[handoff.id] : result.was || '';
     return;
   }
-  if (!(rule.id in log.before)) return; // its start didn't run today
+  // Afterwards always applies, even if you changed the status during the window. "Previous status" needs
+  // the start to have run today, to know what came before.
   const target = rule.then === PREVIOUS ? log.before[rule.id] : rule.then;
   if (!target) return;
-  const result = await setOmniStatus(target, { onlyIf: rule.status }); // unless you changed it meanwhile
+  const result = await setOmniStatus(target);
   scheduleNote(`Schedule: ${result.message}`);
 }
 
