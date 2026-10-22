@@ -1,0 +1,38 @@
+{
+  "$schema": ".satellite/manifest.schema.json",
+  "name": "orgcs-remote",
+  "version": "0.5.2",
+  "author": "Kevin Alexis Contreras",
+  "description": "Keyboard shortcuts for the OrgCS console (Omni-Channel status, case list, case tabs), Omni-Channel statuses scheduled by time window, and status changes sent from your other devices through Bellwood's Satella relay, linked with a one-time code.",
+  "icon": "symbol:keyboard",
+  "matches": ["*:\/\/orgcs.lightning.force.com\/*"],
+  "js": ["satella.js", "content.js"],
+  "run_at": "document_idle",
+  "world": "isolated",
+  "permissions": ["shortcuts", "storage"],
+  "settings": [
+    {
+      "key": "remoteEnabled",
+      "type": "boolean",
+      "title": "Accept remote status changes",
+      "description": "Connects to Satella (wss://sa-695a7ab59cca49a99418ac589afaded0.ecs.us-east-1.on.aws) and changes your Omni-Channel status when one of your linked devices asks.",
+      "default": true
+    },
+    {
+      "key": "remoteChannel",
+      "type": "string",
+      "title": "Satella channel",
+      "description": "The relay channel commands arrive on. A private name is filled in the first time, and devices learn it when they link. Changing it means linking your devices again.",
+      "placeholder": "orgcs-remote.1a2b3c4d5e6f",
+      "default": ""
+    },
+    {
+      "key": "remoteTrustedKeys",
+      "type": "string",
+      "title": "Linked devices",
+      "description": "Devices allowed to change your status, by Satella key (64 hex characters). Extensions > Link a device adds them; delete an entry to unlink that device. Commands from other keys are ignored, and the key is written to the logs.",
+      "placeholder": "Filled in when you link a device",
+      "default": ""
+    }
+  ]
+}
